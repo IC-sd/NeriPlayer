@@ -49,6 +49,16 @@ import kotlinx.coroutines.withContext
 import moe.ouom.neriplayer.core.player.PlayerManager
 import kotlin.math.max
 
+private const val DARK_LIGHT_OFFSET_BASE = -0.10f
+private const val DARK_LIGHT_OFFSET_LUMA_FACTOR = 0.06f
+private const val DARK_LIGHT_OFFSET_MIN = -0.16f
+private const val DARK_LIGHT_OFFSET_MAX = -0.08f
+private const val DARK_SATURATE_OFFSET = 0.18f
+private const val LIGHT_SATURATE_OFFSET = 0.16f
+
+// x=topHeight, y=fadeHeight, z=darkenStrength, w=reactiveDamp
+private val TOP_PROTECT = floatArrayOf(0.18f, 0.16f, 0.30f, 0.92f)
+
 /**
  * 渲染 Hyper 背景
  * - Android 13+（API 33）启用 RuntimeShader；低版本自动降级为透明
@@ -181,16 +191,19 @@ fun HyperBackground(
                     }
                     val L = luma(c1)
                     val lightOffset = when {
-                        currentIsDark -> (-0.06f + (0.12f * (L - 0.5f)))  // 暗色下略降亮，偏亮封面就少降一点
+                        currentIsDark -> (
+                            DARK_LIGHT_OFFSET_BASE + (DARK_LIGHT_OFFSET_LUMA_FACTOR * (L - 0.5f))
+                        ) // 暗色下收紧亮度上限，避免顶部过亮
                         else          -> ( 0.08f + (0.10f * (0.5f - L)))  // 亮色下略升亮，偏暗封面就多升一点
-                    }.coerceIn(-0.12f, 0.12f)
+                    }.coerceIn(DARK_LIGHT_OFFSET_MIN, DARK_LIGHT_OFFSET_MAX)
 
-                    val saturateOffset = (if (currentIsDark) 0.24f else 0.16f)
+                    val saturateOffset = if (currentIsDark) DARK_SATURATE_OFFSET else LIGHT_SATURATE_OFFSET
 
                     // 喂给着色器
                     painter.setColors(colors)
                     painter.setLightOffset(lightOffset)
                     painter.setSaturateOffset(saturateOffset)
+                    painter.setTopProtect(TOP_PROTECT)
                 }
             } catch (_: Throwable) {
                 // 忽略提色失败，继续使用默认配色

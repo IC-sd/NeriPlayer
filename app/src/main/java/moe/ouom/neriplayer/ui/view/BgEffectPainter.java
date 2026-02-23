@@ -71,6 +71,8 @@ public class BgEffectPainter {
     private final float uShadowOffset = 0.01f;
     private float uMusicLevel = 0f;
     private float uBeat = 0f;
+    // x=topHeight, y=fadeHeight, z=darkenStrength, w=reactiveDamp
+    private float[] uTopProtect = {0.18f, 0.16f, 0.28f, 0.90f};
 
     public void setFullScreenBound() {
         float[] full = new float[]{0f, 0f, 1f, 1f};
@@ -99,6 +101,7 @@ public class BgEffectPainter {
         mBgRuntimeShader.setFloatUniform("uShadowNoiseScale", uShadowNoiseScale);
         mBgRuntimeShader.setFloatUniform("uMusicLevel", uMusicLevel);
         mBgRuntimeShader.setFloatUniform("uBeat", uBeat);
+        mBgRuntimeShader.setFloatUniform("uTopProtect", uTopProtect);
     }
 
     public void setReactive(float level, float beat) {
@@ -136,6 +139,12 @@ public class BgEffectPainter {
     public void setBound(float[] fArr) {
         this.uBgBound = fArr;
         this.mBgRuntimeShader.setFloatUniform("uBound", fArr);
+    }
+
+    public void setTopProtect(float[] fArr) {
+        if (fArr == null || fArr.length < 4) return;
+        this.uTopProtect = fArr;
+        this.mBgRuntimeShader.setFloatUniform("uTopProtect", fArr);
     }
 
     public void setLightOffset(float f) {

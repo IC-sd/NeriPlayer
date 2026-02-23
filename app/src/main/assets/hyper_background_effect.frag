@@ -25,6 +25,8 @@ uniform float uShadowOffset;
 // 音乐驱动参数
 uniform float uMusicLevel;  // 0..1, 平滑音量
 uniform float uBeat;        // 0..1, 脉冲
+// 顶部保护参数: x=顶部保护高度(0..1), y=过渡带高度, z=顶部压暗强度, w=顶部动态响应抑制(0..1)
+uniform vec4 uTopProtect;
 
 vec3 hsl2rgb(in vec3 c)
 {
@@ -178,14 +180,21 @@ vec4 main(vec2 fragCoord){
     hsv = rgb2hsv(color.rgb);
 
     // 饱和与亮度，level/beat 驱动
-    hsv.y = clamp(hsv.y + (0.12 * uMusicLevel + 0.30 * uBeat) * uSaturateOffset, 0.0, 1.0);
+    float topDist = 1.0 - vUv.y; // 顶部为0，向下增大
+    float topMask = 1.0 - smoothstep(uTopProtect.x, uTopProtect.x + uTopProtect.y, topDist);
+    float reactiveGain = 1.0 - topMask * clamp(uTopProtect.w, 0.0, 1.0);
+
+    hsv.y = clamp(hsv.y + reactiveGain * (0.12 * uMusicLevel + 0.30 * uBeat) * uSaturateOffset, 0.0, 1.0);
     color.rgb = hsv2rgb(hsv);
-    color.rgb += (0.05 * uMusicLevel + 0.14 * uBeat) * uLightOffset;
+    color.rgb += reactiveGain * (0.05 * uMusicLevel + 0.14 * uBeat) * uLightOffset;
 
     // 透明度，轻度呼吸
     color.a = clamp(color.a, 0., 1.);
-    float alphaMod = clamp(1.0 - 0.18 * uMusicLevel - 0.12 * uBeat, 0.55, 1.0);
+    float alphaMod = clamp(1.0 - reactiveGain * (0.18 * uMusicLevel + 0.12 * uBeat), 0.55, 1.0);
     color.a *= uAlphaMulti * alphaMod;
+
+    // 顶部固定暗区，降低系统把状态栏判为浅色背景的概率
+    color.rgb = mix(color.rgb, color.rgb * (1.0 - clamp(uTopProtect.z, 0.0, 0.8)), topMask);
 
     vec4 texColor = uTexBitmap.eval(vec2(vUv.x, 1.0 - vUv.y)*uTexWH);
     vec4 uiColor  = uTex.eval(vec2(vUv.x, 1.0 - vUv.y)*uResolution);
