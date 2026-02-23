@@ -1,10 +1,6 @@
 package moe.ouom.neriplayer.util
 
-import moe.ouom.neriplayer.core.api.netease.NeteaseClient
-import moe.ouom.neriplayer.core.api.search.CloudMusicSearchApi
 import moe.ouom.neriplayer.core.api.search.MusicPlatform
-import moe.ouom.neriplayer.core.api.search.QQMusicSearchApi
-import moe.ouom.neriplayer.core.api.search.SongDetails
 import moe.ouom.neriplayer.core.api.search.SongSearchInfo
 import moe.ouom.neriplayer.core.di.AppContainer
 
@@ -32,17 +28,14 @@ import moe.ouom.neriplayer.core.di.AppContainer
  */
 
 object SearchManager {
-    private val qqApi by lazy { QQMusicSearchApi() }
+    private val cloudMusicApi = AppContainer.cloudMusicSearchApi
+    private val qqMusicApi = AppContainer.qqMusicSearchApi
 
     suspend fun search(
         keyword: String,
         platform: MusicPlatform,
     ): List<SongSearchInfo> {
-        val api = if (platform == MusicPlatform.CLOUD_MUSIC) {
-            CloudMusicSearchApi(AppContainer.neteaseClient)
-        } else {
-            qqApi
-        }
+        val api = if (platform == MusicPlatform.CLOUD_MUSIC) cloudMusicApi else qqMusicApi
 
         NPLogger.d("SearchManager", "try to search $keyword")
         return try {
@@ -55,20 +48,23 @@ object SearchManager {
 
     suspend fun findBestMatch(
         songName: String,
-        platform: MusicPlatform,
-        neteaseClient: NeteaseClient
-    ): SongDetails? {
-        val api = if (platform == MusicPlatform.CLOUD_MUSIC) {
-            CloudMusicSearchApi(neteaseClient)
-        } else {
-            qqApi
-        }
-
+        songArtist: String
+    ): SongSearchInfo? {
         NPLogger.d("SearchManager", "try to search $songName")
         return try {
-            val searchResults = api.search(songName, page = 1)
-            val bestMatch = searchResults.firstOrNull() ?: return null
-            api.getSongInfo(bestMatch.id)
+            val searchResults =
+                qqMusicApi.search(songName, page = 1) + cloudMusicApi.search(songName, page = 1)
+            val bestResult = searchResults.filter {
+                it.songName == songName && it.singer == songArtist
+            }
+            val secondResult = searchResults.filter {
+                it.songName == songName
+            }
+            if (bestResult.isNotEmpty()) {
+                bestResult.first()
+            } else {
+                secondResult.firstOrNull()
+            }
         } catch (e: Exception) {
             NPLogger.e("SearchManager", "Failed to find match", e)
             null

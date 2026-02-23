@@ -83,6 +83,7 @@ import moe.ouom.neriplayer.ui.component.parseNeteaseLrc
 import moe.ouom.neriplayer.ui.viewmodel.playlist.BiliVideoItem
 import moe.ouom.neriplayer.ui.viewmodel.playlist.SongItem
 import moe.ouom.neriplayer.util.NPLogger
+import moe.ouom.neriplayer.util.SearchManager
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -653,6 +654,14 @@ object PlayerManager {
                         player.prepare()
                         player.play()
                     }
+
+                    //B站音乐自动匹配封面和歌词
+                    if (song.album.startsWith(BILI_SOURCE_TAG) && song.matchedLyric.isNullOrEmpty()) {
+                        val match = SearchManager.findBestMatch(song.name, song.artist)
+                        match?.apply {
+                            replaceMetadataFromSearch(song, this)
+                        }
+                    }
                 }
                 is SongUrlResult.RequiresLogin -> {
                     NPLogger.w("NERI-PlayerManager", "需要登录才能播放: id=${song.id}, source=${song.album}")
@@ -818,10 +827,16 @@ object PlayerManager {
         ensureInitialized()
         check(initialized) { "Call PlayerManager.initialize(application) first." }
         val songs = videoInfo.pages.map { page ->
+            // Bilibili 视频分P名称处理（如：001. 稻香 - 周杰伦 等）
+            // 第一步：去除开头的序号部分（匹配 数字. 空格 的格式）
+            val regexForNumber = Regex("^\\d+\\.\\s*")
+            val newPagePart = page.part.replace(regexForNumber, "")
+            // 第二步：按 " - " 拆分获取歌名和歌手
+            val partList = newPagePart.split('-')
             SongItem(
                 id = videoInfo.aid,
-                name = page.part,
-                artist = videoInfo.ownerName,
+                name = partList[0].trim(),
+                artist = (partList.getOrNull(1)?:videoInfo.ownerName).trim(),
                 album = "$BILI_SOURCE_TAG|${page.cid}",
                 albumId = 0,
                 durationMs = page.durationSec * 1000L,
