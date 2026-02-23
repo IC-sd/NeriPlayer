@@ -23,7 +23,10 @@
  * Created: 2025/8/8
  */
 
+import android.app.Activity
 import android.app.Application
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
@@ -64,6 +67,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -81,10 +85,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -173,6 +179,12 @@ private fun adjustAccent(base: Color, isDark: Boolean): Color {
     )
 
     return Color(mixed)
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 /**
@@ -383,11 +395,19 @@ fun NeriApp(
             dynamicColor = useSystemDynamic,
             seedColorHex = effectiveSeedHex
         ) {
+            val view = LocalView.current
             val navController = rememberNavController()
             val backEntry by navController.currentBackStackEntryAsState()
             val currentRoute = backEntry?.destination?.route
 
             val snackbarHostState = remember { SnackbarHostState() }
+
+            SideEffect {
+                view.context.findActivity()?.window?.let { window ->
+                    val useDarkStatusContent = showNowPlaying || isDark
+                    WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = !useDarkStatusContent
+                }
+            }
 
             DisposableEffect(showNowPlaying) {
                 AudioReactive.enabled = showNowPlaying
