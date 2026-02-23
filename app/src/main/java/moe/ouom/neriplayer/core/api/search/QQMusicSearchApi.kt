@@ -153,6 +153,8 @@ class QQMusicSearchApi : SearchApi {
                 .addQueryParameter("format", "json")
                 .addQueryParameter("inCharset", "utf8")
                 .addQueryParameter("outCharset", "utf-8")
+                .addQueryParameter("nobase64", "1")
+                .addQueryParameter("g_tk", "5381")
                 .build()
 
             val request = Request.Builder().url(url)
@@ -162,17 +164,12 @@ class QQMusicSearchApi : SearchApi {
             val responseJson = executeRequest(request) as String
             val lyricResponse = json.decodeFromString<QQMusicLyricResponse>(responseJson)
 
-            val lyric = if (lyricResponse.lyric != null) {
-                String(Base64.getDecoder().decode(lyricResponse.lyric))
-            } else {
-                null
-            }
+            val lyric = lyricResponse.lyric?.replace("&#39;", "'")?.replace("&apos;", "'")
+                ?.replace("&quot;", "\"")?.replace("&amp;", "&")
 
-            val translatedLyric = if (lyricResponse.trans != null) {
-                String(Base64.getDecoder().decode(lyricResponse.trans))
-            } else {
-                null
-            }
+            val translatedLyric =
+                lyricResponse.trans?.replace("&#39;", "'")?.replace("&apos;", "'")
+                    ?.replace("&quot;", "\"")?.replace("&amp;", "&")
 
             Pair(lyric, translatedLyric)
         } catch (e: Exception) {
