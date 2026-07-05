@@ -111,6 +111,12 @@ fun SearchApiProbeScreen() {
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(stringResource(R.string.debug_search_qq)) }
 
+                Button(
+                    onClick = { vm.callSearchAndCopy(MusicPlatform.KUGOU_MUSIC) },
+                    enabled = buttonEnabled,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(stringResource(R.string.debug_search_kugou)) }
+
 
                 if (ui.running) {
                     Spacer(Modifier.height(8.dp))

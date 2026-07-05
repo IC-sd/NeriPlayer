@@ -671,6 +671,7 @@
     <string name="debug_search_keyword_label">Search Keyword</string>
     <string name="debug_search_netease">Search NetEase</string>
     <string name="debug_search_qq">Search QQ</string>
+    <string name="debug_search_kugou">Search Kugou</string>
     <string name="debug_search_preview_hint">(No preview, enter keyword and click button above~)</string>
     <string name="debug_error_keyword_empty">Error: Keyword cannot be empty</string>
     <string name="debug_searching">Searching [%1$s]: %2$s …</string>
