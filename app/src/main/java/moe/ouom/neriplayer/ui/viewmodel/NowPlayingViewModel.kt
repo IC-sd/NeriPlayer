@@ -193,6 +193,7 @@ class NowPlayingViewModel : ViewModel() {
                         moe.ouom.neriplayer.core.api.search.CloudMusicSearchApi(client)
                     }
                     MusicPlatform.QQ_MUSIC -> moe.ouom.neriplayer.core.api.search.QQMusicSearchApi()
+                    MusicPlatform.KUGOU_MUSIC -> moe.ouom.neriplayer.core.api.search.KugouMusicSearchApi()
                 }
 
                 val songDetails = api.getSongInfo(selectedSong.id)

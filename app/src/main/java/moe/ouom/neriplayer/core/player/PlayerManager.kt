@@ -350,6 +350,7 @@ object PlayerManager {
     val youtubeMusicClient by lazy { AppContainer.youtubeMusicClient }
 
     val cloudMusicSearchApi by lazy { AppContainer.cloudMusicSearchApi }
+    val kugouMusicSearchApi by lazy { AppContainer.kugouMusicSearchApi }
     val qqMusicSearchApi by lazy { AppContainer.qqMusicSearchApi }
     val lrcLibClient by lazy { AppContainer.lrcLibClient }
 

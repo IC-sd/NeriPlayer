@@ -33,6 +33,7 @@ object SearchManager {
 
     private val cloudMusicApi = AppContainer.cloudMusicSearchApi
     private val qqMusicApi = AppContainer.qqMusicSearchApi
+    private val kugouMusicApi = AppContainer.kugouMusicSearchApi
     private val whitespaceRegex = Regex("\\s+")
     private val artistSeparatorRegex = Regex(
         "\\s*([/,\\u3001\\uFF0C&])\\s*|\\s+(feat\\.?|ft\\.?)\\s+|\\s+[xX]\\s+",
@@ -43,7 +44,11 @@ object SearchManager {
         keyword: String,
         platform: MusicPlatform,
     ): List<SongSearchInfo> {
-        val api = if (platform == MusicPlatform.CLOUD_MUSIC) cloudMusicApi else qqMusicApi
+        val api = when (platform) {
+            MusicPlatform.CLOUD_MUSIC -> cloudMusicApi
+            MusicPlatform.QQ_MUSIC -> qqMusicApi
+            MusicPlatform.KUGOU_MUSIC -> kugouMusicApi
+        }
 
         NPLogger.d("SearchManager", "try to search $keyword")
         return try {
@@ -63,6 +68,7 @@ object SearchManager {
         val searchResults = buildList {
             addAll(searchCandidates(songName, qqMusicApi, "qq"))
             addAll(searchCandidates(songName, cloudMusicApi, "cloud"))
+            addAll(searchCandidates(songName, kugouMusicApi, "kugou"))
         }
         if (searchResults.isEmpty()) {
             return null
