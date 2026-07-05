@@ -36,6 +36,7 @@ import moe.ouom.neriplayer.core.api.bili.BiliClientAudioDataSource
 import moe.ouom.neriplayer.core.api.bili.BiliPlaybackRepository
 import moe.ouom.neriplayer.core.api.netease.NeteaseClient
 import moe.ouom.neriplayer.core.api.search.CloudMusicSearchApi
+import moe.ouom.neriplayer.core.api.search.KugouMusicSearchApi
 import moe.ouom.neriplayer.core.api.search.QQMusicSearchApi
 import moe.ouom.neriplayer.core.api.youtube.YouTubeMusicClient
 import moe.ouom.neriplayer.core.api.youtube.YouTubeMusicPlaybackRepository
@@ -258,6 +259,7 @@ object AppContainer {
     }
 
     val cloudMusicSearchApi by lazy { CloudMusicSearchApi(neteaseClient) }
+    val kugouMusicSearchApi by lazy { KugouMusicSearchApi() }
     val qqMusicSearchApi by lazy { QQMusicSearchApi() }
     val lrcLibClient by lazy { moe.ouom.neriplayer.core.api.lyrics.LrcLibClient(sharedOkHttpClient) }
     val listenTogetherApi by lazy { ListenTogetherApi(sharedOkHttpClient) }
