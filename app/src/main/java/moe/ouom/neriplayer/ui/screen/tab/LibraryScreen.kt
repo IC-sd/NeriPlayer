@@ -142,7 +142,7 @@ enum class LibraryTab(val labelResId: Int) {
     NETEASE(R.string.library_tab_netease_playlist),
     NETEASEALBUM(R.string.library_tab_netease_album),
     BILI(R.string.library_tab_bilibili),
-    QQMUSIC(R.string.library_tab_qqmusic)
+    KUGOU(R.string.library_tab_kugou)
 }
 
 private const val FAVORITE_CATEGORY_PLAYLIST = 0
@@ -157,7 +157,7 @@ private fun libraryTabDisplayOrder(isInternational: Boolean): List<LibraryTab> {
             LibraryTab.NETEASE,
             LibraryTab.NETEASEALBUM,
             LibraryTab.BILI,
-            LibraryTab.QQMUSIC
+            LibraryTab.KUGOU
         )
     } else {
         listOf(
@@ -167,7 +167,7 @@ private fun libraryTabDisplayOrder(isInternational: Boolean): List<LibraryTab> {
             LibraryTab.NETEASEALBUM,
             LibraryTab.YTMUSIC,
             LibraryTab.BILI,
-            LibraryTab.QQMUSIC
+            LibraryTab.KUGOU
         )
     }
 }
@@ -388,7 +388,7 @@ fun LibraryScreen(
                             offlineMode = offlineMode
                         )
 
-                        LibraryTab.QQMUSIC -> QqMusicPlaylistList(
+                        LibraryTab.KUGOU -> KugouPlaylistList(
                             listState = qqMusicListState
                         )
                     }
@@ -2255,47 +2255,96 @@ private fun favoriteSourceLabel(source: String): String {
 }
 
 @Composable
-private fun QqMusicPlaylistList(
+private fun KugouPlaylistList(
     listState: LazyListState
 ) {
     val miniPlayerHeight = LocalMiniPlayerHeight.current
+    val scope = rememberCoroutineScope()
+    var playlistId by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(false) }
+    var resultText by remember { mutableStateOf("") }
+    var resultJson by remember { mutableStateOf("") }
+    val kugouApi = remember { AppContainer.kugouMusicSearchApi }
 
     LazyColumn(
         state = listState,
         contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 8.dp + miniPlayerHeight),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxSize()
     ) {
-        val cardShape = RoundedCornerShape(12.dp)
-        // TODO: Implement QQ Music playlist list when type is available
         item {
             Card(
-                shape = cardShape,
-                colors = CardDefaults.cardColors(
-                    containerColor = Color.Transparent
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                modifier = Modifier
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .clip(cardShape)
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.library_qqmusic_coming)) },
-                    supportingContent = {
-                        Text(stringResource(R.string.library_coming_soon), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    },
-                    colors = ListItemDefaults.colors(
-                        containerColor = Color.Transparent
-                    ),
-                    leadingContent = {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(56.dp)
-                        )
+                Column(Modifier.padding(16.dp)) {
+                    Text("酷狗歌单导入", style = MaterialTheme.typography.titleSmall)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = playlistId,
+                        onValueChange = { playlistId = it },
+                        label = { Text("输入歌单ID或URL") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            if (playlistId.isBlank()) return@Button
+                            loading = true
+                            resultText = "正在导入..."
+                            resultJson = ""
+                            scope.launch {
+                                try {
+                                    val songs = withContext(Dispatchers.IO) {
+                                        kugouApi.getPlaylistSongs(playlistId)
+                                    }
+                                    val json = Json { prettyPrint = true }
+                                    val preview = json.encodeToString(
+                                        kotlinx.serialization.builtins.ListSerializer(
+                                            moe.ouom.neriplayer.core.api.search.SongSearchInfo.serializer()
+                                        ), songs
+                                    )
+                                    resultText = "导入成功: ${songs.size} 首歌曲"
+                                    resultJson = preview
+                                } catch (e: Exception) {
+                                    resultText = "导入失败: ${e.message ?: e.javaClass.simpleName}"
+                                } finally {
+                                    loading = false
+                                }
+                            }
+                        },
+                        enabled = !loading && playlistId.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("导入歌单") }
+
+                    if (loading) {
+                        Spacer(Modifier.height(8.dp))
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
                     }
-                )
+                }
+            }
+        }
+        if (resultText.isNotBlank()) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(resultText, style = MaterialTheme.typography.bodyMedium)
+                        if (resultJson.isNotBlank()) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = resultJson,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+                }
             }
         }
     }

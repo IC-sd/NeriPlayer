@@ -1515,7 +1515,7 @@
     <string name="library_tab_netease_album">网易云 - 专辑</string>
     <string name="library_tab_youtube_music">YouTube Music</string>
     <string name="library_tab_bilibili">哔哩哔哩</string>
-    <string name="library_tab_qqmusic">QQ音乐</string>
+    <string name="library_tab_kugou">酷狗</string>
     <string name="library_create_playlist_default">新建歌单</string>
     <string name="library_name_reserved">该名称已保留为\"%s\"，请换一个名称哦~</string>
     <string name="library_name_exists">已存在同名歌单，请换一个名称</string>
