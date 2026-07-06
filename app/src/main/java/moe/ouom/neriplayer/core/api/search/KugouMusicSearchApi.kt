@@ -275,16 +275,30 @@ class KugouMusicSearchApi : SearchApi {
 
             if (hashes.isEmpty()) throw IOException("歌单中没有找到歌曲")
 
-            hashes.mapIndexed { index, hash ->
-                SongSearchInfo(
-                    id = hash,
-                    songName = "歌曲 #${index + 1}",
-                    singer = "",
-                    duration = "",
-                    source = MusicPlatform.KUGOU_MUSIC,
-                    albumName = null,
-                    coverUrl = null
-                )
+            // 用 hash 获取每首歌的详细信息
+            hashes.map { hash ->
+                try {
+                    val info = getSongInfo(hash)
+                    SongSearchInfo(
+                        id = hash,
+                        songName = info.songName,
+                        singer = info.singer,
+                        duration = "",
+                        source = MusicPlatform.KUGOU_MUSIC,
+                        albumName = info.album,
+                        coverUrl = info.coverUrl
+                    )
+                } catch (e: Exception) {
+                    SongSearchInfo(
+                        id = hash,
+                        songName = "未知歌曲",
+                        singer = "",
+                        duration = "",
+                        source = MusicPlatform.KUGOU_MUSIC,
+                        albumName = null,
+                        coverUrl = null
+                    )
+                }
             }
         }
     }
