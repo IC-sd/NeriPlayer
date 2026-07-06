@@ -4,7 +4,7 @@ import java.io.File
 import java.util.Properties
 
 object Version {
-    val java = JavaVersion.VERSION_17
+    val java = JavaVersion.VERSION_21
 
     const val compileSdkVersion = 36
     const val minSdk = 28
