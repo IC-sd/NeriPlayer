@@ -31,6 +31,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -116,6 +119,23 @@ fun SearchApiProbeScreen() {
                     enabled = buttonEnabled,
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(stringResource(R.string.debug_search_kugou)) }
+
+
+                Spacer(Modifier.height(8.dp))
+                Text("酷狗歌单导入", style = MaterialTheme.typography.titleSmall)
+                var playlistId by remember { mutableStateOf("") }
+                OutlinedTextField(
+                    value = playlistId,
+                    onValueChange = { playlistId = it },
+                    label = { Text("输入歌单ID或URL") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Button(
+                    onClick = { vm.callImportPlaylist(playlistId) },
+                    enabled = !ui.running && playlistId.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("导入歌单") }
 
 
                 if (ui.running) {

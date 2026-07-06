@@ -112,7 +112,7 @@ class KugouMusicSearchApi : SearchApi {
                     id = song.hash,
                     songName = song.songname,
                     singer = song.singername,
-                    duration = formatDuration((song.duration ?: 0) / 1000),
+                    duration = formatDuration(((song.duration ?: 0) / 1000).toLong()),
                     source = MusicPlatform.KUGOU_MUSIC,
                     albumName = song.albumName,
                     coverUrl = null // 封面在 getSongInfo 中获取
@@ -233,5 +233,59 @@ class KugouMusicSearchApi : SearchApi {
         val minutes = seconds / 60
         val remainingSeconds = seconds % 60
         return String.format("%d:%02d", minutes, remainingSeconds)
+    }
+
+    // ===== 歌单导入 =====
+
+    /**
+     * 从酷狗歌单URL或specialId中提取specialId
+     * 支持格式:
+     * - https://www.kugou.com/yy/special/single/8268942.html
+     * - https://m.kugou.com/plist/info?specialid=8268942
+     * - 纯数字ID: 8268942
+     */
+    fun extractSpecialId(input: String): String {
+        val idPattern = Regex("""specialid[=/](\d+)""")
+        val singlePattern = Regex("""special/single/(\d+)""")
+        val plainPattern = Regex("""^(\d+)$""")
+
+        return when {
+            idPattern.containsMatchIn(input) -> idPattern.find(input)!!.groupValues[1]
+            singlePattern.containsMatchIn(input) -> singlePattern.find(input)!!.groupValues[1]
+            plainPattern.matches(input.trim()) -> input.trim()
+            else -> throw IllegalArgumentException("无法识别的酷狗歌单链接: $input")
+        }
+    }
+
+    /**
+     * 获取歌单中的歌曲列表（最多30首）
+     * @param specialId 歌单ID或完整URL
+     */
+    suspend fun getPlaylistSongs(specialId: String): List<SongSearchInfo> {
+        val sid = if (specialId.matches(Regex("""^\d+$"""))) specialId else extractSpecialId(specialId)
+        return withContext(Dispatchers.IO) {
+            val url = "https://www.kugou.com/yy/special/single/$sid.html"
+            val request = Request.Builder().url(url)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .build()
+
+            val html = executeRequest(request)
+            val hashPattern = Regex(""""hash":"([A-F0-9]+)"""")
+            val hashes = hashPattern.findAll(html).map { it.groupValues[1] }.toList()
+
+            if (hashes.isEmpty()) throw IOException("歌单中没有找到歌曲")
+
+            hashes.mapIndexed { index, hash ->
+                SongSearchInfo(
+                    id = hash,
+                    songName = "歌曲 #${index + 1}",
+                    singer = "",
+                    duration = "",
+                    source = MusicPlatform.KUGOU_MUSIC,
+                    albumName = null,
+                    coverUrl = null
+                )
+            }
+        }
     }
 }

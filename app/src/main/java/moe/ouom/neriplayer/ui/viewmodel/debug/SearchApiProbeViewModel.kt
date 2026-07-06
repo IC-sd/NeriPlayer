@@ -113,4 +113,27 @@ class SearchApiProbeViewModel(app: Application) : AndroidViewModel(app) {
         val cm = getApplication<Application>().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         cm.setPrimaryClip(ClipData.newPlainText(label, text))
     }
+
+    fun callImportPlaylist(specialId: String) {
+        viewModelScope.launch {
+            _ui.value = _ui.value.copy(running = true, lastMessage = "正在导入酷狗歌单...", lastJsonPreview = "")
+            try {
+                val songs = withContext(Dispatchers.IO) {
+                    kugouMusicApi.getPlaylistSongs(specialId)
+                }
+                val resultJson = json.encodeToString(songs)
+                copyToClipboard("kugou_playlist", resultJson)
+                _ui.value = _ui.value.copy(
+                    running = false,
+                    lastMessage = "导入成功: ${songs.size} 首歌曲",
+                    lastJsonPreview = resultJson
+                )
+            } catch (e: Exception) {
+                _ui.value = _ui.value.copy(
+                    running = false,
+                    lastMessage = "导入失败: ${e.message ?: e.javaClass.simpleName}"
+                )
+            }
+        }
+    }
 }
