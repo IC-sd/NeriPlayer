@@ -81,6 +81,24 @@ import moe.ouom.neriplayer.core.di.AppContainer
     val content: String? = null
 )
 
+    @Serializable private data class KugouSongInfoForList(
+    val hash: String = "",
+    val filename: String = "",
+    val duration: Int? = null,
+    val album_id: String? = null
+)
+
+@Serializable private data class KugouPlaylistSongResponse(
+    val data: KugouPlaylistSongData? = null,
+    val status: Int? = null,
+    val errcode: Int? = null
+)
+
+@Serializable private data class KugouPlaylistSongData(
+    val info: List<KugouSongInfoForList>? = null,
+    val total: Int? = null
+)
+
 class KugouMusicSearchApi : SearchApi {
 
     companion object {
@@ -264,41 +282,31 @@ class KugouMusicSearchApi : SearchApi {
     suspend fun getPlaylistSongs(specialId: String): List<SongSearchInfo> {
         val sid = if (specialId.matches(Regex("""^\d+$"""))) specialId else extractSpecialId(specialId)
         return withContext(Dispatchers.IO) {
-            val url = "https://www.kugou.com/yy/special/single/$sid.html"
+            val url = "http://mobilecdn.kugou.com/api/v3/special/song?specialid=$sid&format=json&page=1&pagesize=500"
             val request = Request.Builder().url(url)
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
                 .build()
 
-            val html = executeRequest(request)
-            val hashPattern = Regex(""""hash":"([A-F0-9]+)"""")
-            val hashes = hashPattern.findAll(html).map { it.groupValues[1] }.toList()
+            val responseJson = executeRequest(request)
+            val response = json.decodeFromString<KugouPlaylistSongResponse>(responseJson)
 
-            if (hashes.isEmpty()) throw IOException("歌单中没有找到歌曲")
+            if (response.status != 1 || response.data?.info == null) {
+                throw IOException("获取歌单失败: ${response.errcode}")
+            }
 
-            // 用 hash 获取每首歌的详细信息
-            hashes.map { hash ->
-                try {
-                    val info = getSongInfo(hash)
-                    SongSearchInfo(
-                        id = hash,
-                        songName = info.songName,
-                        singer = info.singer,
-                        duration = "",
-                        source = MusicPlatform.KUGOU_MUSIC,
-                        albumName = info.album,
-                        coverUrl = info.coverUrl
-                    )
-                } catch (e: Exception) {
-                    SongSearchInfo(
-                        id = hash,
-                        songName = "未知歌曲",
-                        singer = "",
-                        duration = "",
-                        source = MusicPlatform.KUGOU_MUSIC,
-                        albumName = null,
-                        coverUrl = null
-                    )
-                }
+            response.data.info.map { song ->
+                val parts = song.filename.split(" - ", limit = 2)
+                val singer = if (parts.size > 1) parts[0].trim() else ""
+                val songName = if (parts.size > 1) parts[1].trim() else song.filename.trim()
+                SongSearchInfo(
+                    id = song.hash,
+                    songName = songName,
+                    singer = singer,
+                    duration = song.duration?.let { formatDuration(it / 1000L) } ?: "",
+                    source = MusicPlatform.KUGOU_MUSIC,
+                    albumName = null,
+                    coverUrl = null
+                )
             }
         }
     }
