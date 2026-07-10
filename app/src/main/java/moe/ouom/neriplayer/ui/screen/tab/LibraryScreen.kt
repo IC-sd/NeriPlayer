@@ -2434,29 +2434,7 @@ private fun KugouPlaylistList(
                                                     PlayerManager.playPlaylist(listOf(item), 0)
                                                     context.startForegroundService(Intent(context, AudioPlayerService::class.java))
                                                 } else {
-                                                    // 酷狗无版权，搜索网易云作为备选
-                                                    Toast.makeText(context, "酷狗无版权，正在搜索网易云...", Toast.LENGTH_SHORT).show()
-                                                    val keyword = if (song.singer.isNotBlank()) "${song.songName} ${song.singer}" else song.songName
-                                                    val neteaseResults = withContext(Dispatchers.IO) { AppContainer.cloudMusicSearchApi.search(keyword, 1) }
-                                                    if (neteaseResults.isNotEmpty()) {
-                                                        val ns = neteaseResults[0]
-                                                        // 用网易云的匹配songId来播放
-                                                        PlayerManager.playPlaylist(listOf(SongItem(
-                                                            id = ns.id.hashCode().toLong(),
-                                                            name = ns.songName,
-                                                            artist = ns.singer,
-                                                            album = ns.albumName ?: song.albumName ?: "",
-                                                            albumId = 0,
-                                                            durationMs = parseDuration(ns.duration),
-                                                            coverUrl = ns.coverUrl,
-                                                            matchedSongId = ns.id,
-                                                            matchedLyricSource = MusicPlatform.CLOUD_MUSIC
-                                                        )), 0)
-                                                        context.startForegroundService(Intent(context, AudioPlayerService::class.java))
-                                                        Toast.makeText(context, "已切换到网易云版本: ${ns.songName}", Toast.LENGTH_SHORT).show()
-                                                    } else {
-                                                        Toast.makeText(context, "该歌曲在所有平台均无法播放", Toast.LENGTH_SHORT).show()
-                                                    }
+                                                    Toast.makeText(context, "该歌曲暂无法从酷狗获取播放地址，请在探索页手动搜索", Toast.LENGTH_LONG).show()
                                                 }
                                             } catch (e: Exception) {
                                                 Toast.makeText(context, "播放失败: ${e.message}", Toast.LENGTH_SHORT).show()
