@@ -2430,7 +2430,7 @@ private fun KugouPlaylistList(
                                                         albumId = 0,
                                                         durationMs = parseDuration(song.duration),
                                                         coverUrl = "https://imge.kugou.com/stdmusic/400/${song.id}.jpg",
-                                                        mediaUri = url
+                                                        streamUrl = url
                                                     )
                                                     PlayerManager.playPlaylist(listOf(item), 0)
                                                     context.startForegroundService(Intent(context, AudioPlayerService::class.java))
