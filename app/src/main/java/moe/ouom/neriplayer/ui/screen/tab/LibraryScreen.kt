@@ -26,6 +26,7 @@ package moe.ouom.neriplayer.ui.screen.tab
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -59,7 +60,9 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -70,6 +73,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -116,8 +120,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import moe.ouom.neriplayer.R
+import moe.ouom.neriplayer.core.api.search.MusicPlatform
 import moe.ouom.neriplayer.core.api.search.SongSearchInfo
 import moe.ouom.neriplayer.core.di.AppContainer
+import moe.ouom.neriplayer.core.player.AudioPlayerService
+import moe.ouom.neriplayer.core.player.PlayerManager
 import moe.ouom.neriplayer.data.playlist.favorite.FAVORITE_SOURCE_NETEASE_ARTIST
 import moe.ouom.neriplayer.data.playlist.favorite.FavoritePlaylist
 import moe.ouom.neriplayer.data.playlist.favorite.FavoritePlaylistRepository
@@ -136,6 +143,7 @@ import moe.ouom.neriplayer.ui.viewmodel.tab.LibraryViewModel
 import moe.ouom.neriplayer.ui.viewmodel.tab.PlaylistSummary
 import moe.ouom.neriplayer.ui.viewmodel.tab.YouTubeMusicPlaylist
 import moe.ouom.neriplayer.ui.viewmodel.tab.favoriteId
+import moe.ouom.neriplayer.ui.viewmodel.playlist.SongItem
 import moe.ouom.neriplayer.util.HapticIconButton
 import moe.ouom.neriplayer.util.HapticTextButton
 import moe.ouom.neriplayer.util.formatPlayCount
@@ -2276,16 +2284,11 @@ private fun KugouPlaylistList(
     var loading by remember { mutableStateOf(false) }
     var resultText by remember { mutableStateOf("") }
     val kugouApi = remember { AppContainer.kugouMusicSearchApi }
-
-    // 已保存歌单
     var savedPlaylists by remember { mutableStateOf<List<KugouSavedPlaylist>>(emptyList()) }
     var expandedPlaylistId by remember { mutableStateOf<String?>(null) }
-    var playerPlaying by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
 
-    // 启动时加载已保存的歌单
-    LaunchedEffect(Unit) {
-        savedPlaylists = loadKugouPlaylists(context)
-    }
+    LaunchedEffect(Unit) { savedPlaylists = loadKugouPlaylists(context) }
 
     LazyColumn(
         state = listState,
@@ -2314,126 +2317,158 @@ private fun KugouPlaylistList(
                     Button(
                         onClick = {
                             if (playlistId.isBlank()) return@Button
-                            loading = true
-                            resultText = "正在导入..."
+                            loading = true; resultText = "正在导入..."
                             scope.launch {
                                 try {
                                     val sid = withContext(Dispatchers.IO) { kugouApi.extractSpecialId(playlistId) }
                                     val songs = withContext(Dispatchers.IO) { kugouApi.getPlaylistSongs(playlistId) }
-                                    val playlistName = "酷狗歌单 #$sid"
-                                    saveKugouPlaylist(context, KugouSavedPlaylist(
-                                        id = sid,
-                                        name = playlistName,
-                                        songCount = songs.size,
-                                        songs = songs
-                                    ))
+                                    saveKugouPlaylist(context, KugouSavedPlaylist(sid, "酷狗歌单 #$sid", songs.size, songs))
                                     savedPlaylists = loadKugouPlaylists(context)
-                                    playlistId = ""
-                                    resultText = "导入成功: ${songs.size} 首歌曲"
+                                    playlistId = ""; resultText = "导入成功: ${songs.size} 首歌曲"
                                 } catch (e: Exception) {
                                     resultText = "导入失败: ${e.message ?: e.javaClass.simpleName}"
-                                } finally {
-                                    loading = false
-                                }
+                                } finally { loading = false }
                             }
                         },
                         enabled = !loading && playlistId.isNotBlank(),
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("导入歌单") }
-
-                    if (loading) {
-                        Spacer(Modifier.height(8.dp))
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-                    }
+                    ) { Text(if (loading) "导入中..." else "导入歌单") }
                     if (resultText.isNotBlank() && !loading) {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(4.dp))
                         Text(resultText, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
         }
 
-        // ---- 已保存歌单列表 ----
+        // ---- 已保存歌单 ----
         if (savedPlaylists.isEmpty()) {
-            item {
-                Text(
-                    "暂无已导入的歌单",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
+            item { Text("暂无已导入的歌单", style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp)) }
         } else {
-            item {
-                Text("已保存的歌单 (${savedPlaylists.size})",
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp))
-            }
+            item { Text("已保存的歌单 (${savedPlaylists.size})",
+                style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) }
+
             savedPlaylists.forEach { playlist ->
+                // 歌单卡片
                 item {
                     Card(
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { expandedPlaylistId = if (expandedPlaylistId == playlist.id) null else playlist.id }
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            expandedPlaylistId = if (expandedPlaylistId == playlist.id) null else playlist.id
+                            searchQuery = ""
+                        }
                     ) {
-                        Row(
-                            Modifier.padding(16.dp).fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        Row(Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(playlist.name, style = MaterialTheme.typography.bodyLarge)
                                 Text("${playlist.songCount} 首歌曲", style = MaterialTheme.typography.bodySmall)
                             }
-                            Text(if (expandedPlaylistId == playlist.id) "▲" else "▼")
+                            Text(if (expandedPlaylistId == playlist.id) "▲" else "▼",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
 
-                // 展开显示歌曲列表
+                // 展开歌单
                 if (expandedPlaylistId == playlist.id) {
-                    playlist.songs.forEachIndexed { index, song ->
+                    // 搜索框
+                    item {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            label = { Text("搜索歌单内歌曲") },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                            singleLine = true,
+                            leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) }
+                        )
+                    }
+
+                    val filtered = if (searchQuery.isBlank()) playlist.songs
+                        else playlist.songs.filter { s ->
+                            s.songName.contains(searchQuery, ignoreCase = true) ||
+                            s.singer.contains(searchQuery, ignoreCase = true)
+                        }
+
+                    if (filtered.isEmpty()) {
+                        item { Text("未找到匹配的歌曲", modifier = Modifier.padding(16.dp)) }
+                    }
+
+                    filtered.forEachIndexed { idx, song ->
                         item {
+                            var showMenu by remember { mutableStateOf(false) }
                             Card(
                                 shape = RoundedCornerShape(8.dp),
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        playerPlaying = true
-                                        resultText = "正在获取播放地址..."
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(Modifier.padding(start = 8.dp, top = 6.dp, bottom = 6.dp, end = 4.dp).fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // 专辑封面
+                                    AsyncImage(
+                                        model = "https://imge.kugou.com/stdmusic/400/${song.id}.jpg",
+                                        contentDescription = null,
+                                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(6.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    // 歌曲信息
+                                    Column(Modifier.weight(1f).clickable {
                                         scope.launch {
+                                            resultText = "正在获取播放地址..."
                                             try {
                                                 val url = withContext(Dispatchers.IO) { kugouApi.getPlayUrl(song.id) }
                                                 if (url != null) {
-                                                    resultText = "可播放: ${song.songName} (URL已获取)"
+                                                    val item = SongItem(
+                                                        id = song.id.hashCode().toLong(),
+                                                        name = song.songName,
+                                                        artist = song.singer,
+                                                        album = song.albumName ?: "",
+                                                        albumId = 0,
+                                                        durationMs = parseDuration(song.duration),
+                                                        coverUrl = "https://imge.kugou.com/stdmusic/400/${song.id}.jpg",
+                                                        mediaUri = url
+                                                    )
+                                                    PlayerManager.playPlaylist(listOf(item), 0)
+                                                    context.startForegroundService(Intent(context, AudioPlayerService::class.java))
+                                                    resultText = ""
                                                 } else {
                                                     resultText = "获取播放地址失败"
                                                 }
                                             } catch (e: Exception) {
                                                 resultText = "播放失败: ${e.message}"
                                             }
-                                            playerPlaying = false
                                         }
-                                    }
-                            ) {
-                                Row(Modifier.padding(12.dp).fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically) {
-                                    Text("${index + 1}", style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.width(24.dp))
-                                    Column(Modifier.weight(1f)) {
+                                    }) {
                                         Text(song.songName, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-                                        if (song.singer.isNotBlank()) {
-                                            Text(song.singer, style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                                        }
+                                        if (song.singer.isNotBlank())
+                                            Text(song.singer, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                                     }
-                                    if (song.duration.isNotBlank()) {
+                                    // 时长
+                                    if (song.duration.isNotBlank())
                                         Text(song.duration, style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(end = 4.dp))
+                                    // 三点菜单
+                                    Box {
+                                        IconButton(onClick = { showMenu = true }) {
+                                            Icon(Icons.Filled.MoreVert, contentDescription = "更多")
+                                        }
+                                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                                            DropdownMenuItem(
+                                                text = { Text("复制歌曲信息") },
+                                                onClick = {
+                                                    showMenu = false
+                                                    val info = "${song.songName} - ${song.singer} [${song.duration}]"
+                                                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                    cm.setPrimaryClip(ClipData.newPlainText("kugou_song", info))
+                                                    Toast.makeText(context, "已复制: $info", Toast.LENGTH_SHORT).show()
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -2443,6 +2478,13 @@ private fun KugouPlaylistList(
             }
         }
     }
+}
+
+private fun parseDuration(duration: String): Long {
+    val parts = duration.split(":")
+    return if (parts.size == 2) {
+        (parts[0].toLongOrNull() ?: 0) * 60000 + (parts[1].toLongOrNull() ?: 0) * 1000
+    } else 0L
 }
 
 // ===== 存储相关 =====
