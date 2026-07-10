@@ -311,7 +311,9 @@ class KugouMusicSearchApi : SearchApi {
                     id = song.hash,
                     songName = songName,
                     singer = singer,
-                    duration = song.duration?.let { formatDuration(it / 1000L) } ?: "",
+                    duration = song.duration?.let { d ->
+                        formatDuration(d.toLong())
+                    } ?: "",
                     source = MusicPlatform.KUGOU_MUSIC,
                     albumName = null,
                     coverUrl = null
@@ -328,7 +330,7 @@ class KugouMusicSearchApi : SearchApi {
     suspend fun getPlayUrl(hash: String): String? {
         return withContext(Dispatchers.IO) {
             try {
-                val raw = hash.lowercase() + "kgcloudv2"
+                val raw = hash + "kgcloudv2"
                 val md5 = MessageDigest.getInstance("MD5").digest(raw.toByteArray())
                 val key = md5.joinToString("") { "%02x".format(it) }
                 val url = "http://trackercdn.kugou.com/i/v2/?key=$key&hash=$hash&br=hq&appid=1005&pid=2&cmd=25&behavior=play"
