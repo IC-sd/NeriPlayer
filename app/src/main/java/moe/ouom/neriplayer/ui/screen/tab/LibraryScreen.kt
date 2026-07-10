@@ -2436,10 +2436,10 @@ private fun KugouPlaylistList(
                                                     context.startForegroundService(Intent(context, AudioPlayerService::class.java))
                                                     resultText = ""
                                                 } else {
-                                                    resultText = "获取播放地址失败"
+                                                    Toast.makeText(context, "该歌曲暂时无法播放（版权限制）", Toast.LENGTH_SHORT).show()
                                                 }
                                             } catch (e: Exception) {
-                                                resultText = "播放失败: ${e.message}"
+                                                Toast.makeText(context, "播放失败: ${e.message}", Toast.LENGTH_SHORT).show()
                                             }
                                         }
                                     }) {
