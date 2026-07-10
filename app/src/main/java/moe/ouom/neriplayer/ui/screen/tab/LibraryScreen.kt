@@ -23,6 +23,7 @@ package moe.ouom.neriplayer.ui.screen.tab
  * Created: 2025/8/8
  */
 
+import android.app.Application
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -122,9 +123,12 @@ import kotlinx.serialization.json.Json
 import moe.ouom.neriplayer.R
 import moe.ouom.neriplayer.core.api.search.MusicPlatform
 import moe.ouom.neriplayer.core.api.search.SongSearchInfo
+import moe.ouom.neriplayer.core.api.youtube.YouTubeMusicSearchResult
 import moe.ouom.neriplayer.core.di.AppContainer
 import moe.ouom.neriplayer.core.player.AudioPlayerService
 import moe.ouom.neriplayer.core.player.PlayerManager
+import moe.ouom.neriplayer.data.platform.youtube.buildYouTubeMusicMediaUri
+import moe.ouom.neriplayer.data.platform.youtube.stableYouTubeMusicId
 import moe.ouom.neriplayer.data.playlist.favorite.FAVORITE_SOURCE_NETEASE_ARTIST
 import moe.ouom.neriplayer.data.playlist.favorite.FavoritePlaylist
 import moe.ouom.neriplayer.data.playlist.favorite.FavoritePlaylistRepository
@@ -2434,7 +2438,40 @@ private fun KugouPlaylistList(
                                                     PlayerManager.playPlaylist(listOf(item), 0)
                                                     context.startForegroundService(Intent(context, AudioPlayerService::class.java))
                                                 } else {
-                                                    Toast.makeText(context, "该歌曲暂无法从酷狗获取播放地址，请在探索页手动搜索", Toast.LENGTH_LONG).show()
+                                                    // 酷狗获取不到地址，搜索 YouTube Music 作为备选
+                                                    val keyword = if (song.singer.isNotBlank()) "${song.songName} ${song.singer}" else song.songName
+                                                    Toast.makeText(context, "正在搜索 YouTube Music 备选...", Toast.LENGTH_SHORT).show()
+                                                    try {
+                                                        val ytSongs = withContext(Dispatchers.IO) {
+                                                            AppContainer.youtubeMusicClient.search(keyword, 5)
+                                                        }
+                                                        if (ytSongs.isNotEmpty()) {
+                                                            val yt = ytSongs[0]
+                                                            val ytId = stableYouTubeMusicId(yt.videoId)
+                                                            val ytItem = SongItem(
+                                                                id = ytId,
+                                                                name = yt.title,
+                                                                artist = yt.artist.ifBlank { "YouTube" },
+                                                                album = yt.album.ifBlank { "YouTube Music" },
+                                                                albumId = stableYouTubeMusicId("${yt.videoId}|${yt.album}"),
+                                                                durationMs = yt.durationMs,
+                                                                coverUrl = yt.coverUrl.ifBlank { null },
+                                                                mediaUri = buildYouTubeMusicMediaUri(yt.videoId),
+                                                                originalName = yt.title,
+                                                                originalArtist = yt.artist,
+                                                                originalCoverUrl = yt.coverUrl.ifBlank { null },
+                                                                channelId = "youtubeMusic",
+                                                                audioId = yt.videoId
+                                                            )
+                                                            PlayerManager.playPlaylist(listOf(ytItem), 0)
+                                                            context.startForegroundService(Intent(context, AudioPlayerService::class.java))
+                                                            Toast.makeText(context, "已切换到 YouTube Music", Toast.LENGTH_SHORT).show()
+                                                        } else {
+                                                            Toast.makeText(context, "该歌曲在所有平台均无法播放", Toast.LENGTH_LONG).show()
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        Toast.makeText(context, "备选播放失败: ${e.message?.take(50)}", Toast.LENGTH_SHORT).show()
+                                                    }
                                                 }
                                             } catch (e: Exception) {
                                                 Toast.makeText(context, "播放失败: ${e.message}", Toast.LENGTH_SHORT).show()
