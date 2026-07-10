@@ -36,6 +36,7 @@ import moe.ouom.neriplayer.util.NPLogger
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.security.MessageDigest
 import org.json.JSONObject
 import java.io.IOException
 import moe.ouom.neriplayer.core.di.AppContainer
@@ -97,6 +98,14 @@ import moe.ouom.neriplayer.core.di.AppContainer
 @Serializable private data class KugouPlaylistSongData(
     val info: List<KugouSongInfoForList>? = null,
     val total: Int? = null
+)
+
+@Serializable private data class KugouTrackResponse(
+    val status: Int? = null,
+    val url: List<String>? = null,
+    val extName: String? = null,
+    val fileSize: Long? = null,
+    val bitRate: Long? = null
 )
 
 class KugouMusicSearchApi : SearchApi {
@@ -307,6 +316,30 @@ class KugouMusicSearchApi : SearchApi {
                     albumName = null,
                     coverUrl = null
                 )
+            }
+        }
+    }
+
+    /**
+     * 获取酷狗歌曲播放地址
+     * @param hash 歌曲的 FileHash
+     * @return 可播放的 mp3 URL，或 null
+     */
+    suspend fun getPlayUrl(hash: String): String? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val raw = hash.lowercase() + "kgcloudv2"
+                val md5 = MessageDigest.getInstance("MD5").digest(raw.toByteArray())
+                val key = md5.joinToString("") { "%02x".format(it) }
+                val url = "http://trackercdn.kugou.com/i/v2/?key=$key&hash=$hash&br=hq&appid=1005&pid=2&cmd=25&behavior=play"
+                val request = Request.Builder().url(url)
+                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 14)")
+                    .build()
+                val jsonStr = executeRequest(request)
+                val resp = json.decodeFromString<KugouTrackResponse>(jsonStr)
+                resp.url?.firstOrNull()
+            } catch (e: Exception) {
+                null
             }
         }
     }
