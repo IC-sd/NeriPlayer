@@ -2446,6 +2446,7 @@ private fun KugouPlaylistList(
 }
 
 // ===== 存储相关 =====
+@Serializable
 private data class KugouSavedPlaylist(
     val id: String,
     val name: String,
