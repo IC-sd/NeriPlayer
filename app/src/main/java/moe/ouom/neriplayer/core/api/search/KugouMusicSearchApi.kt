@@ -274,11 +274,13 @@ class KugouMusicSearchApi : SearchApi {
     fun extractSpecialId(input: String): String {
         val idPattern = Regex("""specialid[=/](\d+)""")
         val singlePattern = Regex("""special/single/(\d+)""")
+        val gcidPattern = Regex("""gcid_([a-z0-9]+)""")
         val plainPattern = Regex("""^(\d+)$""")
 
         return when {
             idPattern.containsMatchIn(input) -> idPattern.find(input)!!.groupValues[1]
             singlePattern.containsMatchIn(input) -> singlePattern.find(input)!!.groupValues[1]
+            gcidPattern.containsMatchIn(input) -> "gcid_" + gcidPattern.find(input)!!.groupValues[1]
             plainPattern.matches(input.trim()) -> input.trim()
             else -> throw IllegalArgumentException("无法识别的酷狗歌单链接: $input")
         }
@@ -291,33 +293,45 @@ class KugouMusicSearchApi : SearchApi {
     suspend fun getPlaylistSongs(specialId: String): List<SongSearchInfo> {
         val sid = if (specialId.matches(Regex("""^\d+$"""))) specialId else extractSpecialId(specialId)
         return withContext(Dispatchers.IO) {
-            val url = "http://mobilecdn.kugou.com/api/v3/special/song?specialid=$sid&format=json&page=1&pagesize=500"
-            val request = Request.Builder().url(url)
-                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
-                .build()
-
-            val responseJson = executeRequest(request)
-            val response = json.decodeFromString<KugouPlaylistSongResponse>(responseJson)
-
-            if (response.status != 1 || response.data?.info == null) {
-                throw IOException("获取歌单失败: ${response.errcode}")
-            }
-
-            response.data.info.map { song ->
-                val parts = song.filename.split(" - ", limit = 2)
-                val singer = if (parts.size > 1) parts[0].trim() else ""
-                val songName = if (parts.size > 1) parts[1].trim() else song.filename.trim()
-                SongSearchInfo(
-                    id = song.hash,
-                    songName = songName,
-                    singer = singer,
-                    duration = song.duration?.let { d ->
-                        formatDuration(d.toLong())
-                    } ?: "",
-                    source = MusicPlatform.KUGOU_MUSIC,
-                    albumName = null,
-                    coverUrl = null
-                )
+            // 处理 gcid 歌单
+            if (sid.startsWith("gcid_")) {
+                val pageUrl = "https://m.kugou.com/songlist/$sid/"
+                val request = Request.Builder().url(pageUrl)
+                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+                    .build()
+                val pageHtml = executeRequest(request)
+                val hashPattern = Regex(""""hash":"([A-F0-9]+)"""")
+                val hashes = hashPattern.findAll(pageHtml).map { it.groupValues[1] }.toList()
+                if (hashes.isEmpty()) throw IOException("歌单页面未找到歌曲")
+                hashes.mapIndexed { index, hash ->
+                    val info = try { getSongInfo(hash) } catch (_: Exception) { null }
+                    val songName = info?.songName ?: "歌曲 #${index + 1}"
+                    val singer = info?.singer ?: ""
+                    val cover = if (info?.coverUrl?.isNotEmpty() == true) info.coverUrl else null
+                    SongSearchInfo(id = hash, songName = songName, singer = singer,
+                        duration = "", source = MusicPlatform.KUGOU_MUSIC, albumName = null, coverUrl = cover)
+                }
+            } else {
+                // specialId 歌单
+                val url = "http://mobilecdn.kugou.com/api/v3/special/song?specialid=$sid&format=json&page=1&pagesize=500"
+                val request = Request.Builder().url(url)
+                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+                    .build()
+                val responseJson = executeRequest(request)
+                val response = json.decodeFromString<KugouPlaylistSongResponse>(responseJson)
+                if (response.status != 1 || response.data?.info == null) {
+                    throw IOException("获取歌单失败: ${response.errcode}")
+                }
+                response.data.info.map { song ->
+                    val parts = song.filename.split(" - ", limit = 2)
+                    val singer = if (parts.size > 1) parts[0].trim() else ""
+                    val songName = if (parts.size > 1) parts[1].trim() else song.filename.trim()
+                    SongSearchInfo(
+                        id = song.hash, songName = songName, singer = singer,
+                        duration = song.duration?.let { formatDuration(it.toLong()) } ?: "",
+                        source = MusicPlatform.KUGOU_MUSIC, albumName = null, coverUrl = null
+                    )
+                }
             }
         }
     }
