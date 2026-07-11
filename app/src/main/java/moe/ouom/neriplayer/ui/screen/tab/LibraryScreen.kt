@@ -51,6 +51,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -2339,7 +2340,9 @@ private fun KugouPlaylistList(
                     ) { Text(if (loading) "导入中..." else "导入歌单") }
                     if (resultText.isNotBlank() && !loading) {
                         Spacer(Modifier.height(4.dp))
-                        Text(resultText, style = MaterialTheme.typography.bodySmall)
+                        SelectionContainer {
+                            Text(resultText, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }
@@ -2470,7 +2473,7 @@ private fun KugouPlaylistList(
                                                             Toast.makeText(context, "该歌曲在所有平台均无法播放", Toast.LENGTH_LONG).show()
                                                         }
                                                     } catch (e: Exception) {
-                                                        Toast.makeText(context, "备选播放失败: ${e.message?.take(50)}", Toast.LENGTH_SHORT).show()
+                                                        resultText = "备选播放失败: ${e.message}"
                                                     }
                                                 }
                                             } catch (e: Exception) {
